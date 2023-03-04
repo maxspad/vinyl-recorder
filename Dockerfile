@@ -4,9 +4,14 @@ COPY requirements.txt /app/
 
 WORKDIR /app
 
-RUN pip install -r requirements.txt
+RUN apt-get update -y && \
+    apt-get install -y \
+        alsa-utils \
+        libportaudio2 \
+        pulseaudio && \
+    apt-get clean
 
-COPY src/* /app/
+RUN pip install -r requirements.txt
 
 CMD [ "streamlit", "run", "/app/app.py" ] 
 
