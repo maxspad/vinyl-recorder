@@ -2,22 +2,63 @@ import streamlit as st
 import sounddevice as sd
 from matplotlib import pyplot as plt
 import time
+import psutil
+import shutil
 
-st.write('Hello world!')
-st.write(sd.query_devices())
-sd.default.device = 'pulse'
-st.write(sd.query_devices())
+st.title('Vinyl Recorder')
 
-clicked = st.button('Click me to record audio')
-if clicked:
-    duration = 5 # seconds
-    fs = 44100 # Hz
+cols = st.columns(2)
+with cols[0]:
+    # Set the device
+    devices = sd.query_devices()
+    sel_dev = st.selectbox('Choose sound device:', options=devices, format_func=lambda d: f"{d['name']} ({d['max_input_channels']}ch / {d['default_samplerate']}Hz)")
+    sd.default.device = sel_dev['index']
+
+with cols[1]:
+    # Set the sample rate
+    fs = st.radio('Sample rate:', options=[44100, 48000], horizontal=True)
+
+cols = st.columns(2)
+with cols[0]:
+    mins = st.number_input('Minutes', min_value=0, max_value=60, step=1)
+with cols[1]:
+    secs = st.number_input('Seconds', value=5, min_value=0, max_value=60, step=1)
+
+duration = mins*60 + secs
+
+def get_res_stats():
+    hdd = shutil.disk_usage('.')
+    return {
+        'mem': int(psutil.virtual_memory().percent),
+        'cpu': int(psutil.cpu_percent()),
+        'hdd': int(float(hdd.used) / hdd.free * 100)
+    }
+
+
+res_cols = st.columns(3)
+res_labs = ['CPU:', 'Mem:', 'HDD:']
+res_indexes = ['cpu','mem','hdd']
+current_res = get_res_stats()
+res_progs = [c.progress(current_res[res_t], text=lab) for c, res_t, lab in zip(res_cols, res_indexes, res_labs)]
+
+record_clicked = st.button('🔴 Record')
+if record_clicked:
     channels = 2 # stereo
     rec = sd.rec(int(duration * fs), samplerate=fs, channels=channels)
     prog = st.progress(0.0, text='Recording')
-    for i in range(duration):
-        prog.progress((i+1)/float(duration))
-        time.sleep(1.0)
+    with st.empty():
+        for i in range(duration):
+            prog.progress((i+1)/float(duration))
+            current_res = get_res_stats()
+            for p, idx, lab in zip(res_progs, res_indexes, res_labs):
+                p.progress(current_res[idx], text=lab)
+            
+            f = plt.figure()
+            plt.plot(rec[:,0])
+            st.pyplot(f)
+            plt.close()
+
+            time.sleep(1.0)
     sd.wait()
 
     f = plt.figure()
