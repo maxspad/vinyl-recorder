@@ -86,13 +86,14 @@ if stream.active:
 
         # Aggressively downsample the recorded data and display the live preview
         to_dec = read[:,0]
-        for i in range(3):
-            to_dec = scipy.signal.decimate(to_dec, q=10)
+        # for i in range(3):
+        #    to_dec = scipy.signal.decimate(to_dec, q=10)
         downsampled_rec_data.append(to_dec[:,None])
         live_preview.line_chart(np.vstack(downsampled_rec_data)[:,0])
 
         if overflowed:
-            raise Exception('Buffer overflow!')
+            print('Overflow')
+            # raise Exception('Buffer overflow!')
         
 
 else:
