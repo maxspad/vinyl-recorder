@@ -5,3 +5,4 @@ seaborn
 psutil
 soundfile
 scipy
+librosa
