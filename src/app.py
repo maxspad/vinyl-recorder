@@ -1,8 +1,8 @@
 import streamlit as st
 import sounddevice as sd
 import numpy as np
-import queue
-import sys
+import helpers
+import scipy
 
 st.title('Vinyl Recorder')
 
@@ -26,15 +26,6 @@ with cols[1]:
     secs = st.number_input('Seconds', value=5, min_value=0, max_value=60, step=1)
 duration = mins*60 + secs
 
-# stream callback that runs on a different thread
-q = queue.Queue()
-def callback(indata, frames, time, status):
-    """This is called (from a separate thread) for each audio block."""
-    if status:
-        print(status, file=sys.stderr)
-    q.put(indata.copy())
-    # print('qlen', q.qsize())
-
 # initialize the stream and store it in the session state
 if 'stream' not in st.session_state:
     st.session_state['stream'] = sd.InputStream(samplerate=fs, channels=2,
@@ -50,8 +41,6 @@ def record_callback():
 
 def stop_callback():
     stream.stop()
-
-
 control_cols = st.columns([2,2,6])
 record_clicked = control_cols[0].button('🔴 Record', key='btn_rec',
                                         on_click=record_callback)
@@ -60,25 +49,51 @@ stop_clicked = control_cols[1].button('⬛ Stop', key='btn_stop',
 
 update_interval = st.slider('Update interval (ms)', min_value=100, max_value=10000,
                             value=250, step=100)
-st.write(f"Current stream status: {'active' if stream.active else 'inactive'}")
 
 if 'recorded_data' not in st.session_state:
     st.session_state['recorded_data'] = []
 recorded_data = st.session_state['recorded_data']
 
+
 if stream.active:
     st.header('🔴 Recording...')
-    mean_placeholder = st.empty()
+    
+    # Set up progress bars
+    res_cols = st.columns(3)
+    res_labs = ['CPU:', 'Mem:', 'HDD:']
+    res_indexes = ['cpu','mem','hdd']
+    current_res = helpers.get_res_stats()
+    res_progs = [c.progress(current_res[res_t], text=lab) for c, res_t, lab in zip(res_cols, res_indexes, res_labs)]
+
+    vumeter_left = st.progress(0.0, text='Left')
+    vumeter_right = st.progress(0.0, text='Right')
+
+    downsampled_rec_data = []
+    live_preview = st.empty()
     while True:
-        avail_frames = stream.read_available
+        # Calculate how long to read for (and how long to block for)
+        # based on the requested update frequency
         frames_to_read = int(update_interval / 1000.0 * fs)
-        print(frames_to_read)
+        
         read, overflowed = stream.read(frames_to_read)
-        mean_placeholder.write(f'{np.mean(read)}, frames: {avail_frames}')
+
+        # Update vumeters and resource usage statistics
+        vumeter_left.progress(float(read[:,0].max()), text='Left')
+        vumeter_right.progress(float(read[:,1].max()), text='Right')
+        current_res = helpers.get_res_stats()
+        for p, idx, lab in zip(res_progs, res_indexes, res_labs):
+            p.progress(current_res[idx], text=lab)
+
+        # Aggressively downsample the recorded data and display the live preview
+        to_dec = read[:,0]
+        for i in range(3):
+            to_dec = scipy.signal.decimate(to_dec, q=10)
+        downsampled_rec_data.append(to_dec[:,None])
+        live_preview.line_chart(np.vstack(downsampled_rec_data)[:,0])
+
         if overflowed:
-            raise Exception('Overflowed!')
-        recorded_data.append(read)
-        # sd.sleep(update_interval)
+            raise Exception('Buffer overflow!')
+        
 
 else:
     st.header('⬛ Not Recording')
