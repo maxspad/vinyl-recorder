@@ -3,6 +3,8 @@ import sounddevice as sd
 import numpy as np
 import helpers
 import scipy
+import librosa
+from matplotlib import pyplot as plt
 
 st.title('Vinyl Recorder')
 
@@ -85,11 +87,17 @@ if stream.active:
             p.progress(current_res[idx], text=lab)
 
         # Aggressively downsample the recorded data and display the live preview
-        to_dec = read[:,0]
+        downsampled_rec_data.append(read[:,0])
+
+        f = plt.figure()
+        librosa.display.waveshow(np.vstack(downsampled_rec_data), sr=fs)
+        live_preview.pyplot(f)
+        plt.close()
+
+        # amp_env = amp_env[::100]
         # for i in range(3):
         #    to_dec = scipy.signal.decimate(to_dec, q=10)
-        downsampled_rec_data.append(to_dec[:,None])
-        live_preview.line_chart(np.vstack(downsampled_rec_data)[:,0])
+
 
         if overflowed:
             print('Overflow')
