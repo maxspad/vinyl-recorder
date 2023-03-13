@@ -2,7 +2,7 @@ import streamlit as st
 import sounddevice as sd
 import numpy as np
 import helpers
-import scipy
+from pathlib import Path
 import librosa
 from matplotlib import pyplot as plt
 
@@ -35,6 +35,11 @@ with cols[2]:
     # choose the number of channels
     # chan_opts = {2: 'Stereo', 1:'Mono'}
     # n_chan = st.radio('Channels:', options=chan_opts.keys(), format_func=lambda k: chan_opts[k])
+
+# get the file name to save to
+file_name = st.text_input('File name to record:')
+file_loc = Path('recordings') / file_name
+file_loc.mkdir(parents=True, exist_ok=True)
 
 # get the recording duration
 cols = st.columns(2)
