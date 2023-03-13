@@ -47,6 +47,11 @@ with cols[1]:
 duration = mins*60 + secs
 frames = duration * fs
 
+live_prev_cols = st.columns(2)
+# enable to disable live previoew
+live_prev_enabled = live_prev_cols[0].checkbox('Enable live preview',
+                                               value=False, disabled=controls_disabled)
+
 # initialize the stream and store it in the session state
 if 'stream' not in st.session_state:
     st.session_state['stream'] = sd.InputStream(samplerate=fs, channels=n_chan,
@@ -68,9 +73,11 @@ record_clicked = control_cols[0].button('🔴 Record', key='btn_rec',
                                         on_click=record_callback)
 stop_clicked = control_cols[1].button('⬛ Stop', key='btn_stop', 
                                       on_click=stop_callback)
-
-update_interval = st.slider('Update interval (ms)', min_value=100, max_value=10000,
-                            value=250, step=100, disabled=controls_disabled)
+if live_prev_enabled:
+    update_interval = live_prev_cols[1].slider('Live Update interval (ms)', min_value=100, max_value=10000,
+                                value=250, step=100, disabled=controls_disabled)
+else:
+    update_interval = 500
 
 if 'recorded_data' not in st.session_state:
     st.session_state['recorded_data'] = []
@@ -105,30 +112,27 @@ if stream.active:
         n_frames_rec += frames_to_read
 
         # read = read if n_chan == 2 else read[:, None]
-        print(read.shape)
+        # print(read.shape)
         # Update vumeters and resource usage statistics
         for ch, vu_label, vu in zip(range(n_chan), vu_labels, vumeters):
             vu.progress(float(read[:,ch].max()), text=vu_label)
         current_res = helpers.get_res_stats()
         for p, idx, lab in zip(res_progs, res_indexes, res_labs):
             p.progress(current_res[idx], text=lab)
-        rec_prog.progress(value=float(n_frames_rec) / frames, 
+        rec_prog_val = (float(n_frames_rec) / frames) if n_frames_rec <= frames else 1.0
+        rec_prog.progress(rec_prog_val, 
                           text=f'Recorded {n_frames_rec/fs:.2f}s of {duration:.2f}s')
 
-        # Aggressively downsample the recorded data and display the live preview
-        downsampled_rec_data.append(read)
-        print(len(downsampled_rec_data))
-        drd = np.vstack(downsampled_rec_data).flatten()
-        print(drd.shape)
-        f = plt.figure()
-        librosa.display.waveshow(drd, sr=fs)
-        live_preview.pyplot(f)
-        plt.close()
-
-        # amp_env = amp_env[::100]
-        # for i in range(3):
-        #    to_dec = scipy.signal.decimate(to_dec, q=10)
-
+        if live_prev_enabled:
+            # Aggressively downsample the recorded data and display the live preview
+            downsampled_rec_data.append(read)
+            print(len(downsampled_rec_data))
+            drd = np.vstack(downsampled_rec_data).flatten()
+            print(drd.shape)
+            f = plt.figure()
+            librosa.display.waveshow(drd, sr=fs)
+            live_preview.pyplot(f)
+            plt.close()
 
         if overflowed:
             pass
