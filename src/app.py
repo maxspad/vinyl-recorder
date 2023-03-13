@@ -5,6 +5,7 @@ import helpers
 from pathlib import Path
 import librosa
 from matplotlib import pyplot as plt
+import soundfile as sf
 
 st.title('Vinyl Recorder')
 
@@ -81,8 +82,11 @@ stop_clicked = control_cols[1].button('⬛ Stop', key='btn_stop',
 if live_prev_enabled:
     update_interval = live_prev_cols[1].slider('Live Update interval (ms)', min_value=100, max_value=10000,
                                 value=250, step=100, disabled=controls_disabled)
+    frames_to_read = int(update_interval / 1000.0 * fs)
 else:
-    update_interval = 500
+    # update_interval = 500
+    frames_to_read = int(500 / 1000.0 * fs)
+    # frames_to_read = stream.blocksize
 
 if 'recorded_data' not in st.session_state:
     st.session_state['recorded_data'] = []
@@ -108,43 +112,44 @@ if stream.active:
     downsampled_rec_data = []
     n_frames_rec = 0
     live_preview = st.empty()
-    while n_frames_rec <= frames:
-        # Calculate how long to read for (and how long to block for)
-        # based on the requested update frequency
-        frames_to_read = int(update_interval / 1000.0 * fs)
+    with sf.SoundFile('test.wav', 'x', samplerate=fs, channels=n_chan, subtype='PCM_32') as file:
+        while n_frames_rec <= frames:
+            # Calculate how long to read for (and how long to block for)
+            # based on the requested update frequency
 
-        read, overflowed = stream.read(frames_to_read)
-        n_frames_rec += frames_to_read
+            read, overflowed = stream.read(frames_to_read)
+            n_frames_rec += frames_to_read
+            file.write(read)
 
-        # read = read if n_chan == 2 else read[:, None]
-        # print(read.shape)
-        # Update vumeters and resource usage statistics
-        for ch, vu_label, vu in zip(range(n_chan), vu_labels, vumeters):
-            vu.progress(float(read[:,ch].max()), text=vu_label)
-        current_res = helpers.get_res_stats()
-        for p, idx, lab in zip(res_progs, res_indexes, res_labs):
-            p.progress(current_res[idx], text=lab)
-        rec_prog_val = (float(n_frames_rec) / frames) if n_frames_rec <= frames else 1.0
-        rec_prog.progress(rec_prog_val, 
-                          text=f'Recorded {n_frames_rec/fs:.2f}s of {duration:.2f}s')
+            # read = read if n_chan == 2 else read[:, None]
+            # print(read.shape)
+            # Update vumeters and resource usage statistics
+            for ch, vu_label, vu in zip(range(n_chan), vu_labels, vumeters):
+                vu.progress(float(read[:,ch].max()), text=vu_label)
+            current_res = helpers.get_res_stats()
+            for p, idx, lab in zip(res_progs, res_indexes, res_labs):
+                p.progress(current_res[idx], text=lab)
+            rec_prog_val = (float(n_frames_rec) / frames) if n_frames_rec <= frames else 1.0
+            rec_prog.progress(rec_prog_val, 
+                            text=f'Recorded {n_frames_rec/fs:.2f}s of {duration:.2f}s')
 
-        if live_prev_enabled:
-            # Aggressively downsample the recorded data and display the live preview
-            downsampled_rec_data.append(read)
-            print(len(downsampled_rec_data))
-            drd = np.vstack(downsampled_rec_data).flatten()
-            print(drd.shape)
-            f = plt.figure()
-            librosa.display.waveshow(drd, sr=fs)
-            live_preview.pyplot(f)
-            plt.close()
+            if live_prev_enabled:
+                # Aggressively downsample the recorded data and display the live preview
+                downsampled_rec_data.append(read)
+                print(len(downsampled_rec_data))
+                drd = np.vstack(downsampled_rec_data).flatten()
+                print(drd.shape)
+                f = plt.figure()
+                librosa.display.waveshow(drd, sr=fs)
+                live_preview.pyplot(f)
+                plt.close()
 
-        if overflowed:
-            pass
-            # raise Exception('Buffer overflow!')
+            if overflowed:
+                pass
+                # raise Exception('Buffer overflow!')
 
-    stream.stop()
-    status_header.header('✅ Recording Complete!')
+        stream.stop()
+        status_header.header('✅ Recording Complete!')
 
 
 else:
