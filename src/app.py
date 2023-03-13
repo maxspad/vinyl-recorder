@@ -38,9 +38,12 @@ with cols[2]:
     # n_chan = st.radio('Channels:', options=chan_opts.keys(), format_func=lambda k: chan_opts[k])
 
 # get the file name to save to
-file_name = st.text_input('File name to record:')
-file_loc = Path('recordings') / file_name
-file_loc.mkdir(parents=True, exist_ok=True)
+file_name = st.text_input('File name to record:', disabled=controls_disabled)
+recordings_dir = Path('./recordings/')
+recordings_dir.mkdir(parents=True, exist_ok=True)
+file_loc = recordings_dir / file_name
+if file_loc.exists():
+    st.warning(f'{file_name} exists and will be overwritten.')
 
 # get the recording duration
 cols = st.columns(2)
@@ -112,7 +115,7 @@ if stream.active:
     downsampled_rec_data = []
     n_frames_rec = 0
     live_preview = st.empty()
-    with sf.SoundFile('test.wav', 'x', samplerate=fs, channels=n_chan, subtype='PCM_32') as file:
+    with sf.SoundFile(str(file_loc), 'w', samplerate=fs, channels=n_chan, subtype='PCM_32') as file:
         while n_frames_rec <= frames:
             # Calculate how long to read for (and how long to block for)
             # based on the requested update frequency
