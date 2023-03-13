@@ -1,9 +1,0 @@
-streamlit==1.19.*
-sounddevice
-matplotlib
-seaborn
-psutil
-soundfile
-scipy
-librosa
-watchdog
